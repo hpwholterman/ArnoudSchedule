@@ -11,8 +11,8 @@ class DayType(Enum):
 
 
 class ArnSchedule(object):
-    schedule = None
-    template = None
+    _schedule = list()
+    _template = list()
 
     def __init__(self, schedule):
         self.load_schedule(schedule)
@@ -20,7 +20,7 @@ class ArnSchedule(object):
     def load_schedule(self, schedule):
         if len(schedule) != 14:
             raise Exception('Lengte moet 14 zijn. Gevonden lengte: %s' % schedule)
-        self.template = list()
+        self._template = list()
         week = list()
         for l in schedule.upper():
             d = DayType.FREE
@@ -30,31 +30,49 @@ class ArnSchedule(object):
                 d = DayType.NIGHT
             week.append(d)
             if len(week) >= 7:
-                self.template.append(week)
+                self._template.append(week)
                 week = list()
-        self.schedule = self.template * 4
-        return self.schedule
+        self.reset_schedule()
+        return self._schedule
 
     def sum_schedule(self, day_type=DayType.DAY_OR_NIGHT):
+        def workday(x):
+            return x in [DayType.DAY, DayType.NIGHT]
+
+        def day_match(x):
+            return x == day_type
+
         weeks, days = list(), [0, 0, 0, 0, 0, 0, 0]
+        day_filter = day_match
         if day_type == DayType.DAY_OR_NIGHT:
-            day_filter = lambda x: x in [DayType.DAY, DayType.NIGHT]
-        else:
-            day_filter = lambda x: x == day_type
+            day_filter = workday
         for w in range(8):
-            weeks.append(len([i for i in self.schedule[w] if day_filter(i)]))
+            weeks.append(len([i for i in self._schedule[w] if day_filter(i)]))
             for d in range(7):
-                if day_filter(self.schedule[w][d]):
+                if day_filter(self._schedule[w][d]):
                     days[d] += 1
-        return weeks, days
+        return dict(week=weeks, weekday=days)
+
+    def reset_schedule(self):
+        self._schedule = self._template * 4
+
+    def shift_schedule(self):
+        self._schedule = self._template[::-1] * 4
+
+
+class ArnOrganizer(object):
+    schedules = list()
+
+    def __init__(self):
+        self.schedules = list()
+
 
 
 p1 = 'DDD--NN--DDD--'
+s1 = ArnSchedule(p1)
+
 p2 = '--DDD--DDD--NN'
-
-a = ArnSchedule(p1)
-for w in a.schedule:
-    print(w)
-
-x = a.sum_schedule()
-print(x)
+s2 = ArnSchedule(p2)
+print(s2.sum_schedule())
+s2.shift_schedule()
+print(s2.sum_schedule())
