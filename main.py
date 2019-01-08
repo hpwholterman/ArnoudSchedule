@@ -1,7 +1,7 @@
 from itertools import groupby, filterfalse
 
 from enum import Enum
-from random import choice
+from random import choice, randrange
 import numpy as np
 from copy import deepcopy
 
@@ -94,29 +94,32 @@ class ArnOrganizer(object):
 
 
 def random_schedule():
-    return ''.join([choice(['D', 'D', 'D', 'N', '-', '-']) for i in range(14)])
+    return ''.join([choice(['D', 'D', 'D', 'N', '-', '-', '-']) for i in range(14)])
 
 
 org = ArnOrganizer()
 org.schedules.append(ArnSchedule('edwin', 'DDD--NN--DDD--'))
 org.schedules.append(ArnSchedule('piet', '--DDD--DDD--NN'))
-for n in range(100):
+for n in range(30):
     org.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
 
 print(len(org.schedules))
 s = org.calc()
 best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
-print(best)
-for i in range(len(org.schedules)):
+print('->', best[1:])
+for r in range(len(org.schedules) * 5):
+    i = randrange(len(org.schedules))
     org.schedules[i].shift_schedule()
     s = org.calc()
     s_sd, a_sd = np.std(s.sum(axis=1)), np.std(s)
     if s_sd < best[1]:
-        best = (deepcopy(org), s_sd, a_sd)
+        best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
     elif s_sd == best[1] and a_sd < best[2]:
-        best = (deepcopy(org), s_sd, a_sd)
-        print(s_sd, np.std(s))
-    org.schedules[i].reset_schedule()
-print(best)
-print(np.std(best[0].calc().sum(axis=1)))
+        best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
+    else:
+        org.schedules[i].reset_schedule()
+        continue
+    print('%02d' % r, best[1:], i)
+
+
 
