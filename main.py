@@ -1,6 +1,9 @@
 from itertools import groupby, filterfalse
 
 from enum import Enum
+from random import choice
+import numpy as np
+from copy import deepcopy
 
 
 class DayType(Enum):
@@ -14,8 +17,20 @@ class ArnSchedule(object):
     _schedule = list()
     _template = list()
 
-    def __init__(self, schedule):
+    def __init__(self, name, schedule):
         self.load_schedule(schedule)
+        self.name = name
+
+    def __str__(self):
+        def print_day(dt):
+            if dt == DayType.NIGHT:
+                return 'N'
+            elif dt == DayType.DAY:
+                return 'D'
+            else:
+                return '-'
+
+        return ''.join([print_day(d) for d in self._template[0] + self._template[1]]) + ' -> ' + self.name
 
     def load_schedule(self, schedule):
         if len(schedule) != 14:
@@ -35,23 +50,26 @@ class ArnSchedule(object):
         self.reset_schedule()
         return self._schedule
 
-    def sum_schedule(self, day_type=DayType.DAY_OR_NIGHT):
+    def translate_schedule(self, day_type):
         def workday(x):
             return x in [DayType.DAY, DayType.NIGHT]
 
         def day_match(x):
             return x == day_type
 
-        weeks, days = list(), [0, 0, 0, 0, 0, 0, 0]
         day_filter = day_match
         if day_type == DayType.DAY_OR_NIGHT:
             day_filter = workday
-        for w in range(8):
-            weeks.append(len([i for i in self._schedule[w] if day_filter(i)]))
-            for d in range(7):
-                if day_filter(self._schedule[w][d]):
-                    days[d] += 1
-        return dict(week=weeks, weekday=days)
+        sch = list()
+        for w in self._schedule:
+            sch.append([int(day_filter(d)) for d in w])
+        return np.array(sch)
+
+    def sum_schedule(self, day_type=DayType.DAY_OR_NIGHT):
+        x = self.translate_schedule(day_type)
+        return dict(week=list(x.sum(axis=1)),
+                    weekday=list(x.sum(axis=0))
+                    )
 
     def reset_schedule(self):
         self._schedule = self._template * 4
@@ -66,13 +84,39 @@ class ArnOrganizer(object):
     def __init__(self):
         self.schedules = list()
 
+    def print_schedules(self):
+        for s in self.schedules:
+            print(s)
+
+    def calc(self):
+        ret = sum([s.translate_schedule(DayType.DAY_OR_NIGHT) for s in self.schedules])
+        return ret
 
 
-p1 = 'DDD--NN--DDD--'
-s1 = ArnSchedule(p1)
+def random_schedule():
+    return ''.join([choice(['D', 'D', 'D', 'N', '-', '-']) for i in range(14)])
 
-p2 = '--DDD--DDD--NN'
-s2 = ArnSchedule(p2)
-print(s2.sum_schedule())
-s2.shift_schedule()
-print(s2.sum_schedule())
+
+org = ArnOrganizer()
+org.schedules.append(ArnSchedule('edwin', 'DDD--NN--DDD--'))
+org.schedules.append(ArnSchedule('piet', '--DDD--DDD--NN'))
+for n in range(100):
+    org.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
+
+print(len(org.schedules))
+s = org.calc()
+best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
+print(best)
+for i in range(len(org.schedules)):
+    org.schedules[i].shift_schedule()
+    s = org.calc()
+    s_sd, a_sd = np.std(s.sum(axis=1)), np.std(s)
+    if s_sd < best[1]:
+        best = (deepcopy(org), s_sd, a_sd)
+    elif s_sd == best[1] and a_sd < best[2]:
+        best = (deepcopy(org), s_sd, a_sd)
+        print(s_sd, np.std(s))
+    org.schedules[i].reset_schedule()
+print(best)
+print(np.std(best[0].calc().sum(axis=1)))
+
