@@ -33,8 +33,8 @@ class ArnSchedule(object):
         return ''.join([print_day(d) for d in self._template[0] + self._template[1]]) + ' -> ' + self.name
 
     def load_schedule(self, schedule):
-        if len(schedule) != 14:
-            raise Exception('Lengte moet 14 zijn. Gevonden lengte: %s' % schedule)
+        if len(schedule) != 28:
+            raise Exception('Lengte moet 28 zijn. Gevonden lengte: %s' % len(schedule))
         self._template = list()
         week = list()
         for l in schedule.upper():
@@ -72,10 +72,10 @@ class ArnSchedule(object):
                     )
 
     def reset_schedule(self):
-        self._schedule = self._template * 4
+        self._schedule = self._template * 2
 
-    def shift_schedule(self):
-        self._schedule = self._template[::-1] * 4
+    def shift_schedule(self, offset):
+        self._schedule = [ self._template[(i + offset) % 4] for i in range(8)]
 
 
 class ArnOrganizer(object):
@@ -88,34 +88,35 @@ class ArnOrganizer(object):
         for s in self.schedules:
             print(s)
 
-    def calc(self):
-        ret = sum([s.translate_schedule(DayType.DAY_OR_NIGHT) for s in self.schedules])
+    def calc(self, day_type=DayType.DAY_OR_NIGHT):
+        ret = sum([s.translate_schedule(day_type) for s in self.schedules])
         return ret
 
 
 def random_schedule():
-    return ''.join([choice(['D', 'D', 'D', 'N', '-', '-', '-']) for i in range(14)])
+    return ''.join([choice(['D', 'D', 'D', 'N', '-', '-', '-']) for i in range(28)])
 
 
 org = ArnOrganizer()
-org.schedules.append(ArnSchedule('edwin', 'DDD--NN--DDD--'))
-org.schedules.append(ArnSchedule('piet', '--DDD--DDD--NN'))
-for n in range(30):
+org.schedules.append(ArnSchedule('edwin', 'DDD--NN--DDD--DDD--NN--DDD--'))
+org.schedules.append(ArnSchedule('piet', '--DDD--DDD--NN--DDD--DDD--NN'))
+for n in range(40):
     org.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
 
 print(len(org.schedules))
-s = org.calc()
-best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
+s_d, s_n = org.calc(day_type=DayType.DAY), org.calc(day_type=DayType.NIGHT)
+d_sd, n_sd = np.std(s_d.sum(axis=1)), np.std(s_n.sum(axis=1))
+best = (deepcopy(org), d_sd, n_sd)
 print('->', best[1:])
 for r in range(len(org.schedules) * 5):
     i = randrange(len(org.schedules))
-    org.schedules[i].shift_schedule()
-    s = org.calc()
-    s_sd, a_sd = np.std(s.sum(axis=1)), np.std(s)
-    if s_sd < best[1]:
-        best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
-    elif s_sd == best[1] and a_sd < best[2]:
-        best = (deepcopy(org), np.std(s.sum(axis=1)), np.std(s))
+    org.schedules[i].shift_schedule(offset=randrange(1, 4))
+    s_d, s_n = org.calc(day_type=DayType.DAY), org.calc(day_type=DayType.NIGHT)
+    d_sd, n_sd = np.std(s_d.sum(axis=1)), np.std(s_n.sum(axis=1))
+    if d_sd < best[1]:
+        best = (deepcopy(org), d_sd, n_sd)
+    elif d_sd == best[1] and n_sd < best[2]:
+        best = (deepcopy(org), d_sd, n_sd)
     else:
         org.schedules[i].reset_schedule()
         continue
