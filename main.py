@@ -113,9 +113,7 @@ for r in range(len(org.schedules) * 5):
     org.schedules[i].shift_schedule(offset=randrange(1, 4))
     s_d, s_n = org.calc(day_type=DayType.DAY), org.calc(day_type=DayType.NIGHT)
     d_sd, n_sd = np.std(s_d.sum(axis=1)), np.std(s_n.sum(axis=1))
-    if d_sd < best[1] and n_sd <= best[2]:
-        best = (deepcopy(org), d_sd, n_sd)
-    elif d_sd == best[1] and n_sd < best[2]:
+    if d_sd < best[1] and n_sd <= best[2] * 1.25:
         best = (deepcopy(org), d_sd, n_sd)
     else:
         org.schedules[i].reset_schedule()
