@@ -177,12 +177,18 @@ def random_schedule():
 
 if __name__ == '__main__':
     rost = ArnRoster()
-    for n in range(40):
+    for n in range(32):
         a_sch = ArnSchedule('pers-%s' % n, random_schedule())
         rost.schedules.append(a_sch)
+
+    print('Dag\n', rost.calc(DayType.DAY))
+    print('Nacht\n', rost.calc(DayType.NIGHT))
 
     opt = ArnRosterOptimizer(roster=rost)
     opt.iterate_factor = 25
     opt.iterate_stop = 250
     opt.optimize()
 
+    print('Dag\n', rost.calc(DayType.DAY))
+    ar = rost.calc(DayType.NIGHT)
+    print('Nacht\n', ar, ar.sum(axis=1))
