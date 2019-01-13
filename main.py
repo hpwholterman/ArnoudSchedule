@@ -106,6 +106,7 @@ class ArnRoster(object):
 class ArnRosterOptimizer(object):
     _roster = None
     iterate_factor = 10
+    iterate_stop = 100
     day_margin = 1.1
     night_margin = 1.25
 
@@ -147,9 +148,9 @@ class ArnRosterOptimizer(object):
                           )
                 else:
                     calc_schedule.shift_schedule(prev_offset)
-            if it - prev_it > max(100, sched_count):
+            if it - prev_it > max(self.iterate_stop, sched_count):
+                print('Done', it)
                 break
-        print('Done', it)
 
 
 def random_schedule():
@@ -162,5 +163,7 @@ if __name__ == '__main__':
         rost.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
 
     opt = ArnRosterOptimizer(roster=rost)
+    opt.iterate_factor = 25
+    opt.iterate_stop = 250
     opt.optimize()
 
