@@ -1,3 +1,5 @@
+import csv
+import json
 from enum import Enum
 from random import choice, randrange
 
@@ -26,18 +28,28 @@ class ArnSchedule(object):
         self._template_string = schedule
 
     def __str__(self):
-        def print_day(dt):
-            if dt == DayType.NIGHT:
-                return 'N'
-            elif dt == DayType.DAY:
-                return 'D'
-            else:
-                return '-'
+        return json.dumps(self.json())
 
-        day_codes = list()
-        for w in self._schedule:
-            day_codes += [print_day(d) for d in w]
-        return ''.join(day_codes) + ' -> ' + self.name
+    def json(self):
+        def get_string(print_func, weeks):
+            sched_string = ''
+            for w in weeks:
+                sched_string += ''.join([print_func(d) for d in w])
+            return sched_string
+
+        return dict(name=self.name,
+                    template=get_string(self.print_day, self._template),
+                    schedule=get_string(self.print_day, self._schedule),
+                     )
+
+    @staticmethod
+    def print_day(daytype):
+        if daytype == DayType.NIGHT:
+            return 'N'
+        elif daytype == DayType.DAY:
+            return 'D'
+        else:
+            return '-'
 
     @staticmethod
     def validate(schedule):
@@ -45,11 +57,30 @@ class ArnSchedule(object):
             raise Exception('Lengte moet 28 zijn. Gevonden lengte: %s' % len(schedule))
         if 'ND' in schedule.upper():
             raise Exception('Dagdienst na een nachtdienst gevonden')
-        if 'NN-D' in schedule.upper():
-            raise Exception('NN-D gevonden')
+        if 'N-D' in schedule.upper():
+            raise Exception('N-D gevonden')
         if schedule.count('-') > 14:
             raise Exception('Teveel vrije dagen: %s' % schedule.count('-'))
         return True
+
+    def csv(self):
+        def parse_week(self, t):
+            return dict(naam=self.name,
+                        type=t,
+                        week=i + 1,
+                        ma=self.print_day(w[0]),
+                        di=self.print_day(w[1]),
+                        wo=self.print_day(w[2]),
+                        do=self.print_day(w[3]),
+                        vr=self.print_day(w[4]),
+                        za=self.print_day(w[5]),
+                        zo=self.print_day(w[6]),
+                        )
+
+        for i, w in enumerate(self._template):
+            yield parse_week(self, t='voorkeur')
+        for i, w in enumerate(self._schedule):
+            yield parse_week(self, t='rooster')
 
     def load(self, schedule):
         self._template = list()
@@ -106,6 +137,9 @@ class ArnRoster(object):
     def __init__(self):
         self.schedules = list()
 
+    def __str__(self):
+        return json.dumps(self.json())
+
     def print_schedules(self):
         for s in self.schedules:
             print(s)
@@ -113,6 +147,31 @@ class ArnRoster(object):
     def calc(self, day_type=DayType.DAY_OR_NIGHT):
         ret = sum([s.translate_schedule(day_type) for s in self.schedules])
         return ret
+
+    def dump_json(self, filename='roster.json'):
+        with open(filename, 'w') as f:
+            json.dump(obj=[s.json() for s in self.schedules], fp=f)
+
+    def dump_csv(self, filename='roster.tsv'):
+        with open(filename, 'w') as f:
+            fields = ['naam', 'type', 'week', 'ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+            writer = csv.DictWriter(f, fieldnames=fields, delimiter='\t')
+            writer.writeheader()
+            for sched in self.schedules:
+                for sch_row in sched.csv():
+                    writer.writerow(sch_row)
+
+    def load_json(self, filename):
+        err_cnt = 0
+        with open(filename, 'r') as f:
+            input_dta = json.load(f)
+        for inp_sch in input_dta:
+            try:
+                self.schedules.append(ArnSchedule(inp_sch['name'], inp_sch['template']))
+            except Exception as err:
+                print('ERROR:', err, '->', inp_sch['name'], inp_sch['template'])
+                err_cnt += 1
+        return err_cnt == 0
 
 
 class ArnRosterOptimizer(object):
@@ -175,20 +234,25 @@ def random_schedule():
             pass
 
 
+def load_random(roster):
+    for n in range(25):
+        a_sch = ArnSchedule('pers-%s' % n, random_schedule())
+        roster.schedules.append(a_sch)
+
+
 if __name__ == '__main__':
     rost = ArnRoster()
-    for n in range(32):
-        a_sch = ArnSchedule('pers-%s' % n, random_schedule())
-        rost.schedules.append(a_sch)
 
-    print('Dag\n', rost.calc(DayType.DAY))
-    print('Nacht\n', rost.calc(DayType.NIGHT))
+    # load_random(rost)
+
+    ok = rost.load_json(filename='input.json')
+    if not ok:
+        exit()
 
     opt = ArnRosterOptimizer(roster=rost)
     opt.iterate_factor = 25
     opt.iterate_stop = 250
     opt.optimize()
 
-    print('Dag\n', rost.calc(DayType.DAY))
-    ar = rost.calc(DayType.NIGHT)
-    print('Nacht\n', ar, ar.sum(axis=1))
+    rost.dump_json()
+    rost.dump_csv()
