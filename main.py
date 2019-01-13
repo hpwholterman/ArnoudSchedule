@@ -1,9 +1,10 @@
-from itertools import groupby, filterfalse
-
 from enum import Enum
 from random import choice, randrange
+
 import numpy as np
-from copy import deepcopy
+
+
+# from copy import deepcopy
 
 
 class DayType(Enum):
@@ -19,7 +20,8 @@ class ArnSchedule(object):
     _offset = 0
 
     def __init__(self, name, schedule):
-        self.load_schedule(schedule)
+        self.validate(schedule)
+        self.load(schedule)
         self.name = name
         self._template_string = schedule
 
@@ -37,9 +39,19 @@ class ArnSchedule(object):
             day_codes += [print_day(d) for d in w]
         return ''.join(day_codes) + ' -> ' + self.name
 
-    def load_schedule(self, schedule):
+    @staticmethod
+    def validate(schedule):
         if len(schedule) != 28:
             raise Exception('Lengte moet 28 zijn. Gevonden lengte: %s' % len(schedule))
+        if 'ND' in schedule.upper():
+            raise Exception('Dagdienst na een nachtdienst gevonden')
+        if 'NN-D' in schedule.upper():
+            raise Exception('NN-D gevonden')
+        if schedule.count('-') > 14:
+            raise Exception('Teveel vrije dagen: %s' % schedule.count('-'))
+        return True
+
+    def load(self, schedule):
         self._template = list()
         week = list()
         for l in schedule.upper():
@@ -154,13 +166,20 @@ class ArnRosterOptimizer(object):
 
 
 def random_schedule():
-    return ''.join([choice(['D', '-', 'N', '-']) for i in range(28)])
+    while True:
+        try:
+            sched = ''.join([choice(['D', 'D', 'D', '-', 'N', '-']) for i in range(28)])
+            ArnSchedule.validate(sched)
+            return sched
+        except:
+            pass
 
 
 if __name__ == '__main__':
     rost = ArnRoster()
     for n in range(40):
-        rost.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
+        a_sch = ArnSchedule('pers-%s' % n, random_schedule())
+        rost.schedules.append(a_sch)
 
     opt = ArnRosterOptimizer(roster=rost)
     opt.iterate_factor = 25
