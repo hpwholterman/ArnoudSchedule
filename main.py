@@ -88,7 +88,7 @@ class ArnSchedule(object):
         self._offset = offset
 
 
-class ArnOrganizer(object):
+class ArnRoster(object):
     schedules = list()
 
     def __init__(self):
@@ -103,41 +103,64 @@ class ArnOrganizer(object):
         return ret
 
 
+class ArnRosterOptimizer(object):
+    _roster = None
+    iterate_factor = 10
+    day_margin = 1.1
+    night_margin = 1.25
+
+    def __init__(self, roster):
+        self._roster = roster
+
+    def get_stdevs(self):
+        day_sched, night_sched = self._roster.calc(day_type=DayType.DAY), \
+                                 self._roster.calc(day_type=DayType.NIGHT)
+        day_std, night_std = np.std(day_sched.sum(axis=1)), \
+                             np.std(night_sched.sum(axis=1))
+        return day_std, night_std
+
+    def optimize(self):
+        # start_roster = deepcopy(self._roster)
+        day_std, night_std = self.get_stdevs()
+        best_day_std, best_night_std = day_std, night_std
+        print('->',
+              round(best_day_std, 3),
+              round(best_night_std, 3)
+              )
+        prev_it, calc_idx, sched_count = 0, 0, len(self._roster.schedules)
+        for it in range(sched_count * self.iterate_factor):
+            sch_idx = randrange(sched_count)
+            calc_schedule = self._roster.schedules[sch_idx]
+            for test_offset in range(1, 4):
+                prev_offset = calc_schedule._offset
+                calc_schedule.shift_schedule(test_offset)
+                day_std, night_std = self.get_stdevs()
+                if ((day_std < best_day_std and night_std <= best_night_std * self.night_margin)
+                        or (day_std <= best_day_std * self.day_margin and night_std < best_night_std)):
+                    best_day_std, best_night_std = day_std, night_std
+                    calc_idx, prev_it = sch_idx, it
+                    print('%02d' % it,
+                          test_offset,
+                          round(best_day_std, 3),
+                          round(best_night_std, 3),
+                          calc_idx
+                          )
+                else:
+                    calc_schedule.shift_schedule(prev_offset)
+            if it - prev_it > max(100, sched_count):
+                break
+        print('Done', it)
+
+
 def random_schedule():
     return ''.join([choice(['D', '-', 'N', '-']) for i in range(28)])
 
 
-org = ArnOrganizer()
-for n in range(10):
-    org.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
+if __name__ == '__main__':
+    rost = ArnRoster()
+    for n in range(40):
+        rost.schedules.append(ArnSchedule('pers-%s' % n, random_schedule()))
 
-print(len(org.schedules))
-s_d, s_n = org.calc(day_type=DayType.DAY), org.calc(day_type=DayType.NIGHT)
-d_sd, n_sd = np.std(s_d.sum(axis=1)), np.std(s_n.sum(axis=1))
-best = (deepcopy(org), d_sd, n_sd)
-print('->', best[1:])
-prev_r, xx = 0, 0
-for r in range(len(org.schedules) * 10):
-    i = randrange(len(org.schedules))
-    # print('%02d' % r, i)
-    for o in range(1, 4):
-        prev_offset = org.schedules[i]._offset
-        org.schedules[i].shift_schedule(o)
-        s_d, s_n = org.calc(day_type=DayType.DAY), org.calc(day_type=DayType.NIGHT)
-        d_sd, n_sd = np.std(s_d.sum(axis=1)), np.std(s_n.sum(axis=1))
-        if (d_sd < best[1] and n_sd <= best[2] * 1.25) or (d_sd <= best[1] * 1.1 and n_sd < best[2]):
-            best = (deepcopy(org), d_sd, n_sd)
-            xx, prev_r = i, r
-            print('%02d' % r, best[1:], i, o)
-        else:
-            org.schedules[i].shift_schedule(prev_offset)
-            continue
-    if r - prev_r > max(100, len(org.schedules)):
-        break
-print(r)
-print(best[0].calc(day_type=DayType.DAY))
-print(best[0].calc(day_type=DayType.NIGHT))
-print(best[0].schedules[xx])
-print(best[0].schedules[xx]._template_string)
-
+    opt = ArnRosterOptimizer(roster=rost)
+    opt.optimize()
 
