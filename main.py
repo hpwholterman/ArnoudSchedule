@@ -64,6 +64,24 @@ class ArnSchedule(object):
         return True
 
     def csv(self):
+        def parse_day(self, t):
+            day_idx = y % 7
+            return dict(naam=self.name,
+                        type=t,
+                        week=i + 1,
+                        day='%s: %s' % (1 + day_idx, days[day_idx]),
+                        work=self.print_day(d),
+                        )
+
+        days = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+        for i, w in enumerate(self._template):
+            for y, d in enumerate(w):
+                yield parse_day(self, t='voorkeur')
+        for i, w in enumerate(self._schedule):
+            for y, d in enumerate(w):
+                yield parse_day(self, t='rooster')
+
+    def csv1(self):
         def parse_week(self, t):
             return dict(naam=self.name,
                         type=t,
@@ -152,9 +170,18 @@ class ArnRoster(object):
         with open(filename, 'w') as f:
             json.dump(obj=[s.json() for s in self.schedules], fp=f)
 
-    def dump_csv(self, filename='roster.tsv'):
+    def dump_csv1(self, filename='roster1.tsv'):
         with open(filename, 'w') as f:
             fields = ['naam', 'type', 'week', 'ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+            writer = csv.DictWriter(f, fieldnames=fields, delimiter='\t')
+            writer.writeheader()
+            for sched in self.schedules:
+                for sch_row in sched.csv1():
+                    writer.writerow(sch_row)
+
+    def dump_csv(self, filename='roster.tsv'):
+        with open(filename, 'w') as f:
+            fields = ['naam', 'type', 'week', 'day', 'work']
             writer = csv.DictWriter(f, fieldnames=fields, delimiter='\t')
             writer.writeheader()
             for sched in self.schedules:
