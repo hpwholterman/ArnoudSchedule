@@ -22,7 +22,7 @@ class ArnSchedule(object):
     _offset = 0
 
     def __init__(self, name, schedule):
-        self.validate(schedule)
+        # self.validate(schedule)
         self.load(schedule)
         self.name = name
         self._template_string = schedule
@@ -59,7 +59,6 @@ class ArnSchedule(object):
     # -> naar rato partime percentage
     # -> 57+ hoeft geen nachtdienst (parameter)
     # Rooster moet fixed kunnen zijn
-
         if len(schedule) != 28:
             raise Exception('Lengte moet 28 zijn. Gevonden lengte: %s' % len(schedule))
         if 'ND' in schedule.upper():
@@ -238,9 +237,8 @@ class ArnRosterOptimizer(object):
         # start_roster = deepcopy(self._roster)
         day_std, night_std = self.get_stdevs()
         best_day_std, best_night_std = day_std, night_std
-        print('->',
-              round(best_day_std, 3),
-              round(best_night_std, 3)
+        print('->', dict(std_day=round(best_day_std, 3),
+                         std_night=round(best_night_std, 3))
               )
         prev_it, calc_idx, sched_count = 0, 0, len(self._roster.schedules)
         for it in range(sched_count * self.iterate_factor):
@@ -254,16 +252,18 @@ class ArnRosterOptimizer(object):
                         or (day_std <= best_day_std * self.day_margin and night_std < best_night_std)):
                     best_day_std, best_night_std = day_std, night_std
                     calc_idx, prev_it = sch_idx, it
-                    print('%02d' % it,
-                          test_offset,
-                          round(best_day_std, 3),
-                          round(best_night_std, 3),
-                          calc_idx
+                    print('%002d' % it,
+                          dict(index=calc_idx,
+                               offset=test_offset,
+                               std_day=round(best_day_std, 3),
+                               std_night=round(best_night_std, 3),
+                               )
                           )
+                    print(calc_schedule.name)
                 else:
                     calc_schedule.shift_schedule(prev_offset)
             if it - prev_it > max(self.iterate_stop, sched_count):
-                print('Done', it)
+                print('Done', 'iter:', it)
                 break
 
 
@@ -278,9 +278,11 @@ def random_schedule():
 
 
 def load_random(roster):
-    for n in range(25):
+    for n in range(50):
         print(n)
-        a_sch = ArnSchedule('pers-%s' % n, random_schedule())
+        sched = random_schedule()
+        ok = ArnSchedule.validate(sched)
+        a_sch = ArnSchedule('pers-%s' % n, sched)
         roster.schedules.append(a_sch)
 
 
@@ -288,15 +290,17 @@ if __name__ == '__main__':
     rost = ArnRoster()
 
     # load_random(rost)
-
     ok = rost.load_json(filename='input.json')
     if not ok:
         exit()
 
-    # print(rost.calc())
+    print(rost.calc(day_type=DayType.NIGHT).sum(axis=1))
+    print(rost.calc(day_type=DayType.NIGHT).sum(axis=0))
+    print(rost.calc(day_type=DayType.DAY).sum(axis=1))
+    print(rost.calc(day_type=DayType.DAY).sum(axis=0))
 
     opt = ArnRosterOptimizer(roster=rost)
-    opt.iterate_factor = 50
+    opt.iterate_factor = 20
     opt.iterate_stop = 250
     opt.optimize()
 
@@ -304,10 +308,7 @@ if __name__ == '__main__':
     rost.dump_csv()
     rost.dump_csv1()
 
-    # print(rost.calc())
-
-    # print('\n')
-    # print(rost.schedules[0])
-    # dt = DayType.DAY_OR_NIGHT
-    # print(rost.schedules[0].translate_schedule(day_type=dt))
-    # print(rost.schedules[0].sum_schedule(day_type=dt))
+    print(rost.calc(day_type=DayType.NIGHT).sum(axis=1))
+    print(rost.calc(day_type=DayType.NIGHT).sum(axis=0))
+    print(rost.calc(day_type=DayType.DAY).sum(axis=1))
+    print(rost.calc(day_type=DayType.DAY).sum(axis=0))
