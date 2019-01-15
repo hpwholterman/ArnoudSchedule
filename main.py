@@ -53,12 +53,27 @@ class ArnSchedule(object):
 
     @staticmethod
     def validate(schedule):
+    # Een rooster van 8 weken
+    # -> 8 nachten
+    # -> 32 diensten totaal
+    # -> naar rato partime percentage
+    # -> 57+ hoeft geen nachtdienst (parameter)
+    # Rooster moet fixed kunnen zijn
+
         if len(schedule) != 28:
             raise Exception('Lengte moet 28 zijn. Gevonden lengte: %s' % len(schedule))
         if 'ND' in schedule.upper():
             raise Exception('Dagdienst na een nachtdienst gevonden')
         if 'N-D' in schedule.upper():
             raise Exception('N-D gevonden')
+        if 'D-N' in schedule.upper():
+            raise Exception('D-N gevonden')
+        if 'N-N' in schedule.upper():
+            raise Exception('N-N gevonden')
+        if 'D-D' in schedule.upper():
+            raise Exception('D-D gevonden')
+        if schedule.upper().count('N') < 4:
+            raise Exception('Te weinig nachtdiensten: %s' % schedule.upper().count('N'))
         if schedule.count('-') > 14:
             raise Exception('Teveel vrije dagen: %s' % schedule.count('-'))
         return True
@@ -138,20 +153,21 @@ class ArnSchedule(object):
                     )
 
     def reset_schedule(self):
-        self._schedule = self._template * 2
+        self._schedule = self._template * 4 # 2 test meer weken
         self._offset = 0
 
     def shift_schedule(self, offset):
         if offset <= 0:
             self.reset_schedule()
             return
-        self._schedule = [self._template[(i + offset) % 4] for i in range(8)]
+        self._schedule = [self._template[(i + offset) % 4] for i in range(16)] # 8 test meer weken
         self._offset = offset
 
 
 class ArnRoster(object):
     schedules = list()
-
+# Paraatheid moet een varaiabele zijn per dag
+# aantal nachtdiensten variabel per dag
     def __init__(self):
         self.schedules = list()
 
@@ -170,19 +186,19 @@ class ArnRoster(object):
         with open(filename, 'w') as f:
             json.dump(obj=[s.json() for s in self.schedules], fp=f)
 
-    def dump_csv1(self, filename='roster1.tsv'):
+    def dump_csv1(self, filename='roster1.csv', delimiter=','):
         with open(filename, 'w') as f:
             fields = ['naam', 'type', 'week', 'ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
-            writer = csv.DictWriter(f, fieldnames=fields, delimiter='\t')
+            writer = csv.DictWriter(f, fieldnames=fields, delimiter=delimiter)
             writer.writeheader()
             for sched in self.schedules:
                 for sch_row in sched.csv1():
                     writer.writerow(sch_row)
 
-    def dump_csv(self, filename='roster.tsv'):
+    def dump_csv(self, filename='roster.csv', delimter=','):
         with open(filename, 'w') as f:
             fields = ['naam', 'type', 'week', 'day', 'work']
-            writer = csv.DictWriter(f, fieldnames=fields, delimiter='\t')
+            writer = csv.DictWriter(f, fieldnames=fields, delimiter=delimter)
             writer.writeheader()
             for sched in self.schedules:
                 for sch_row in sched.csv():
@@ -205,8 +221,8 @@ class ArnRosterOptimizer(object):
     _roster = None
     iterate_factor = 10
     iterate_stop = 100
-    day_margin = 1.1
-    night_margin = 1.25
+    day_margin = 1.25
+    night_margin = 1.1
 
     def __init__(self, roster):
         self._roster = roster
@@ -263,6 +279,7 @@ def random_schedule():
 
 def load_random(roster):
     for n in range(25):
+        print(n)
         a_sch = ArnSchedule('pers-%s' % n, random_schedule())
         roster.schedules.append(a_sch)
 
@@ -276,10 +293,21 @@ if __name__ == '__main__':
     if not ok:
         exit()
 
+    # print(rost.calc())
+
     opt = ArnRosterOptimizer(roster=rost)
-    opt.iterate_factor = 25
+    opt.iterate_factor = 50
     opt.iterate_stop = 250
     opt.optimize()
 
     rost.dump_json()
     rost.dump_csv()
+    rost.dump_csv1()
+
+    # print(rost.calc())
+
+    # print('\n')
+    # print(rost.schedules[0])
+    # dt = DayType.DAY_OR_NIGHT
+    # print(rost.schedules[0].translate_schedule(day_type=dt))
+    # print(rost.schedules[0].sum_schedule(day_type=dt))
